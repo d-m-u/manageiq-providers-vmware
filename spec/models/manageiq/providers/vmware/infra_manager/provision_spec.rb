@@ -44,13 +44,13 @@ describe ManageIQ::Providers::Vmware::InfraManager::Provision do
         expect(spec["annotation"]).to include(@vm_prov.phase_context[:new_vm_validation_guid])
       end
 
-      it "should return a transform spec" do
-        spec = @vm_prov.build_transform_spec
-        expect(spec).to be_nil
+      it "should return a disk_relocate spec" do
         @vm_prov.options[:disk_format] = 'thin'
-        spec = @vm_prov.build_transform_spec
-        expect(spec).to be_kind_of(VimString)
-        expect(spec.vimType).to eq('VirtualMachineRelocateTransformation')
+        @vm_prov.destination = @vm_template
+        spec = @vm_prov.build_disk_relocate_spec(@vm_prov.options)
+        expect(spec).to be_kind_of(VimHash)
+        expect(spec.vimType).to eq('VirtualDiskFlatVer2BackingInfo')
+        expect(spec["disk_format"]).to eq('thin')
       end
 
       it "should detect when a reconfigure_hardware_on_destination call is required" do

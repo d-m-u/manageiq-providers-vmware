@@ -21,13 +21,44 @@ module ManageIQ::Providers::Vmware::InfraManager::Provision::Configuration::Disk
     end
   end
 
-  def get_scsi_controller_info
-    inventory_hash = source.with_provider_connection do |vim|
-      vim.virtualMachineByMor(source.ems_ref_obj)
-    end
+  def build_disk_relocate_spec(datastore)
+    #        disk_locator.diskBackingInfo = VimHash.new("VirtualDiskFlatVer2BackingInfo") do |vdbi|
+    #        vdbi.diskMode =  disk["backing"]["diskMode"]
+    #         case get_option(:disk_format)
+    #          when 'thin'
+    #            vdbi.thinProvisioned = "false"
+    #          when 'thick'
+    #            vdbi.thinProvisioned = "false"
+    #            # vdbi.eagerlyScrub = "false"
+    #          when 'thick_eager'
+    #            #  vdbi.eagerlyScrub = "true"
+    #            vdbi.thinProvisioned = "false"
+    #          end
+    #        end
+    #     end
+    #   end
+    # end
 
-    devs = inventory_hash.fetch_path("config", "hardware", "device") || []
-    devs.each_with_object({}) do |dev, h|
+        VimArray.new('ArrayOfVirtualMachineRelocateSpecDiskLocator') do |relocate_spec_array|
+      (disks_info).each do |disk|
+        relocate_spec_array << VimHash.new('VirtualMachineRelocateSpecDiskLocator') do |disk_locator|
+          disk_locator.diskId = disk.key
+          disk_locator.datastore = datastore
+          disk_locator.diskBackingInfo = disk.backing
+          disk_locator.diskBackingInfo.thinProvisioned = VimString.new("false")
+          disk_locator.diskBackingInfo.eagerlyScrub = VimString.new("false")
+          disk_locator.diskBackingInfo.delete("fileName")
+        end
+      end
+    end
+  end
+
+  def disks_info
+    disks.select { |d| d.xsiType == "VirtualDisk" }
+  end
+
+  def get_scsi_controller_info
+    disks.each_with_object({}) do |dev, h|
       next unless dev.fetch_path("deviceInfo", "label").to_s =~ /^SCSI\s[Cc]ontroller\s.*$/
       h[dev['busNumber'].to_i] = dev
     end
@@ -78,5 +109,15 @@ module ManageIQ::Providers::Vmware::InfraManager::Provision::Configuration::Disk
         end
       end
     end
+  end
+
+  private
+
+  def disks
+    inventory_hash = source.with_provider_connection do |vim|
+      vim.virtualMachineByMor(source.ems_ref_obj)
+    end
+
+    inventory_hash.fetch_path("config", "hardware", "device") || []
   end
 end
